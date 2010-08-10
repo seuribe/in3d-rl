@@ -40,8 +40,11 @@ public class Transition {
 		} else if (rnd <= left) {
 			return dir.getLeft();
 		}
-//			throw new Exception("Bad formed Transition!");
-		return dir;
+		return Direction.NONE;
 	}
-		
+
+	public String toString() {
+		return "[f:" + fwd + " r:" + right + " b:" + back + " l:" + left + "]";
+	}
+	
 }
