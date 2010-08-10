@@ -17,8 +17,10 @@ import org.rlcommunity.rlglue.codec.types.Reward_observation_terminal;
 
 public class RaceEnvironment implements EnvironmentInterface {
 
+	/** La recompensa por cada paso que realiza sin llegar a la meta. Incentiva que llegue rapido. */
 	private static final int STEP_REWARD = -1;
-	private static final int TERMINATION_REWARD = 1000;
+	/** La recompensa por llegar a la meta */
+	private static final int TERMINATION_REWARD = 10000;
 	private static final int TRACK_WIDTH  = 44;
 	private static final int TRACK_HEIGHT = 20;
 	
@@ -27,7 +29,12 @@ public class RaceEnvironment implements EnvironmentInterface {
 	private Position agent;
 	
 	private CellType[][] track;
+	private boolean outputMoves = false;
 
+	/**
+	 * Modela la posicion del agente en el entorno 
+	 *
+	 */
 	private class Position {
 		public int x, y;
 		
@@ -68,8 +75,17 @@ public class RaceEnvironment implements EnvironmentInterface {
 			x += dir.moveX;
 			y += dir.moveY;
 		}
+		
+		public String toString() {
+			return "(" + x + "," + y + ")";
+		}
 	}
 	
+	/**
+	 * Modela la direccion en que puede decidir avanzar el agente. Dependiendo del terreno - y su funcion de transicion - 
+	 * puede ser que avance en esa direccion o en otra.
+	 * 
+	 */
 	public static enum Direction {
 		NORTH(0, 1, 2, 3, 0, -1), EAST(1, 2, 3, 0, 1, 0), SOUTH(2, 3, 0, 1, 0, 1), WEST(3, 0, 1, 2, -1, 0), NONE(4, 4, 4, 4, 0, 0);
 
@@ -107,13 +123,22 @@ public class RaceEnvironment implements EnvironmentInterface {
 			}
 			return null;
 		}
+		
+		public String toString() {
+			return name();
+		}
 	}
 	
+	/**
+	 * Cada tipo de celda que hay en el terreno. Contiene su identificacion y la funcion de transicion para ese
+	 * tipo de terreno. 
+	 *
+	 */
 	private enum CellType {
-		Track('T', new Transition(1.0f, 0f, 0f, 0f)),
-		Sand('S', new Transition(0.75f, 0f, 0f, 0.1f)),
-		Ice('I', new Transition(0.5f, 0.25f, 0.25f, 0f)),
-		Offtrack('.', new Transition(0, 0, 0, 0)), // Irrelevante, porque no deberia poder entrar nunca
+		Track('T', new Transition(1.0f, 0f, 0f, 0f)), // En el track avanza siempre bien
+		Sand('S', new Transition(0.75f, 0f, 0f, 0.1f)), // peque;a probabilidad de tener que volver atras (si se queda trabado)
+		Ice('I', new Transition(0.5f, 0.25f, 0.25f, 0f)), // En el hielo puede patinar e irse para los costados
+		Offtrack('.', new Transition(0, 0, 0, 0)), // Irrelevante, porque no deberia poder entrar nunca. pero si entra, que se quede clavado
 		Start('0', new Transition(1.0f, 0f, 0f, 0f)), // Igual que el track normal
 		End('X', new Transition(1.0f, 0f, 0f, 0f)); // Igual que el track normal
 
@@ -141,12 +166,20 @@ public class RaceEnvironment implements EnvironmentInterface {
 		public boolean isValid() {
 			return this != Offtrack;
 		}
+		
+		public String toString() {
+			return name();
+		}
 	}
 	
 	@Override
 	public void env_cleanup() {
+		// no hace falta cleanup ? 
 	}
 
+	/**
+	 * Lee el mapa desde archivo. No deberia hacer falta mas de una vez dado que no se altera.
+	 */
 	private void readMap() {
 		try {
 			track = new CellType[TRACK_HEIGHT][TRACK_WIDTH];
@@ -200,6 +233,14 @@ public class RaceEnvironment implements EnvironmentInterface {
 			dumpState();
 			return "Understood";
 		}
+		if (message.startsWith("show moves")) {
+			outputMoves = true;
+			return "Understood";
+		}
+		if (message.startsWith("hide moves")) {
+			outputMoves = false;
+			return "Understood";
+		}
 		if (message.startsWith("reset")) {
 			reset();
 			return "Understood";
@@ -207,10 +248,16 @@ public class RaceEnvironment implements EnvironmentInterface {
 		return "Message not understood";
 	}
 
+	/**
+	 * Solo necesita reinicializar la posicion del jugador a la inicial
+	 */
 	private void reset() {
 		agent = new Position(start);
 	}
 
+	/**
+	 * Imprime por stdout la pista, incluyendo la posicion del jugador
+	 */
 	private void dumpState() {
 		System.out.println();
 		for (int y = 0 ; y < track.length ; y++) {
@@ -233,22 +280,23 @@ public class RaceEnvironment implements EnvironmentInterface {
 		return obs;
 	}
 
-	private int steps = 0;
 	@Override
 	public Reward_observation_terminal env_step(Action action) {
 		
-		steps++;
-//		if (steps % 10 == 0) {
-//			dumpState();
-//		}
+		if (outputMoves) {
+			dumpState();
+		}
 		
 		int nAction = action.getInt(0);
 		Direction dir = Direction.get(nAction);
-		
-		if (canMove(dir)) {
+
+		CellType ct = track[agent.y][agent.x];
+		dir = ct.T.attempt(dir);
+		Position newPos = agent.moveNew(dir);
+		if (inBounds(newPos) && inTrack(newPos)) {
 			agent.move(dir);
 		}
-		
+
 		Reward_observation_terminal rot = new Reward_observation_terminal();
 		
 		Observation obs = new Observation(1, 0, 0);
@@ -267,23 +315,12 @@ public class RaceEnvironment implements EnvironmentInterface {
 		return rot;
 	}
 
-	private boolean canMove(Direction dir) {
-		CellType ct = track[agent.y][agent.x];
-		dir = ct.T.attempt(dir);
-		Position newPos = agent.moveNew(dir);
-		return inBounds(newPos) && inTrack(newPos);
-	}
-
 	private boolean inTrack(Position pos) {
 		return track[pos.y][pos.x].isValid();
 	}
 
 	private boolean inBounds(Position pos) {
 		return pos.inBounds(0, 0, TRACK_WIDTH, TRACK_HEIGHT);
-	}
-
-	private Position getNewPosition(Direction dir) {
-		return agent.moveNew(dir.moveX, dir.moveY);
 	}
 
 	private int getWorldState() {
