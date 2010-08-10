@@ -11,18 +11,18 @@ public class RaceExperiment {
 		LocalGlue localGlueImplementation=new LocalGlue(env, agent);
 		RLGlue.setGlue(localGlueImplementation);
 		
-		final int N_EPISODES = 10;
+		final int N_EPISODES = 100;
 		
 		RLGlue.RL_init();
 		System.out.println("running experiments");
-		for (int i = 0 ; i < 1000 ; i++) {
+		for (int i = 0 ; i < 2000 ; i++) {
 			
 			if (i % 10 == 0) {
 //				RLGlue.RL_env_message("print-state");
 				System.out.print('.');
 			}
 
-			RLGlue.RL_episode(5000);
+			RLGlue.RL_episode(1000);
 		}
 		System.out.println();
 		System.out.println("Evaluating...");
@@ -30,7 +30,7 @@ public class RaceExperiment {
 		double sum = 0;
 		double sum_squares = 0;
         for (int i = 0; i < N_EPISODES; i++) {
-            RLGlue.RL_episode(5000);
+            RLGlue.RL_episode(1000);
             double ret = RLGlue.RL_return();
             sum += ret;
             sum_squares += ret * ret;

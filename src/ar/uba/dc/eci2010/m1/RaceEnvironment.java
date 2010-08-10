@@ -117,8 +117,6 @@ public class RaceEnvironment implements EnvironmentInterface {
 		Start('0', new Transition(1.0f, 0f, 0f, 0f)), // Igual que el track normal
 		End('X', new Transition(1.0f, 0f, 0f, 0f)); // Igual que el track normal
 
-		private static final char TERMINAL_ID = 'X';
-		
 		private final char id;
 		private final Transition T;
 
@@ -137,7 +135,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 		}
 		
 		public boolean isTerminal() {
-			return id == TERMINAL_ID;
+			return this == End;
 		}
 		
 		public boolean isValid() {
@@ -229,6 +227,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 
 	@Override
 	public Observation env_start() {
+		reset();
 		Observation obs = new Observation(1, 0, 0);
 		obs.setInt(0, getWorldState());
 		return obs;
@@ -239,9 +238,9 @@ public class RaceEnvironment implements EnvironmentInterface {
 	public Reward_observation_terminal env_step(Action action) {
 		
 		steps++;
-		if (steps % 10 == 0) {
-			dumpState();
-		}
+//		if (steps % 10 == 0) {
+//			dumpState();
+//		}
 		
 		int nAction = action.getInt(0);
 		Direction dir = Direction.get(nAction);
