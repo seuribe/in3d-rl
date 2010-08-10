@@ -5,8 +5,6 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import org.rlcommunity.rlglue.codec.EnvironmentInterface;
 import org.rlcommunity.rlglue.codec.taskspec.TaskSpec;
@@ -21,13 +19,56 @@ public class RaceEnvironment implements EnvironmentInterface {
 
 	private static final int STEP_REWARD = -1;
 	private static final int TERMINATION_REWARD = 1000;
-	private static final int TRACK_WIDTH  = 45;
+	private static final int TRACK_WIDTH  = 44;
 	private static final int TRACK_HEIGHT = 20;
 	
-	private int agentX;
-	private int agentY;
+	private Position start;
+	
+	private Position agent;
 	
 	private CellType[][] track;
+
+	private class Position {
+		public int x, y;
+		
+		public Position() {
+			this.x = 0;
+			this.y = 0;
+		}
+		
+		public Position(int x, int y) {
+			this.x = x;
+			this.y = y;
+		}
+		
+		public Position(Position pos) {
+			this.x = pos.x;
+			this.y = pos.y;
+		}
+/*
+		public boolean equals(Position p) {
+			return x == p.x && y == p.y;
+		}
+*/		
+		public boolean equals(int x, int y) {
+			return this.x == x && this.y == y;
+		}
+		public Position moveNew(int moveX, int moveY) {
+			return new Position(this.x + moveX, this.y + moveY);
+		}
+		public boolean inBounds(int minx, int miny, int maxx, int maxy) {
+			return x >= minx && y >= miny && x < maxx && y < maxy;
+		}
+
+		public Position moveNew(Direction dir) {
+			return moveNew(dir.moveX, dir.moveY);
+		}
+
+		public void move(Direction dir) {
+			x += dir.moveX;
+			y += dir.moveY;
+		}
+	}
 	
 	public static enum Direction {
 		NORTH(0, 1, 2, 3, 0, -1), EAST(1, 2, 3, 0, 1, 0), SOUTH(2, 3, 0, 1, 0, 1), WEST(3, 0, 1, 2, -1, 0), NONE(4, 4, 4, 4, 0, 0);
@@ -106,11 +147,9 @@ public class RaceEnvironment implements EnvironmentInterface {
 	
 	@Override
 	public void env_cleanup() {
-		
 	}
 
-	@Override
-	public String env_init() {
+	private void readMap() {
 		try {
 			track = new CellType[TRACK_HEIGHT][TRACK_WIDTH];
 			File file = new File("data/track.txt");
@@ -118,7 +157,10 @@ public class RaceEnvironment implements EnvironmentInterface {
 			for (int y = 0 ; y < TRACK_HEIGHT ; y++) {
 				String line = reader.readLine();
 				for (int x = 0 ; x < TRACK_WIDTH ; x++) {
-					track[y][x] = CellType.get(line.charAt(x)); 
+					track[y][x] = CellType.get(line.charAt(x));
+					if (track[y][x] == CellType.Start) {
+						start = new Position(x, y);
+					}
 				}
 			}
 		} catch (FileNotFoundException e) {
@@ -126,8 +168,21 @@ public class RaceEnvironment implements EnvironmentInterface {
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		
-		TaskSpecVRLGLUE3 spec = new TaskSpecVRLGLUE3("Reach the end of the track");
+		if (start == null) {
+			System.out.println("Error! No starting position on track!");
+		}
+	}
+	
+	@Override
+	public String env_init() {
+
+		if (track == null) {
+			readMap();
+		}
+
+		reset();
+
+		TaskSpecVRLGLUE3 spec = new TaskSpecVRLGLUE3();
 		spec.setDiscountFactor(0.95f);
 		spec.setEpisodic();
 		spec.addDiscreteObservation(new IntRange(0, getNumStates() - 1));
@@ -143,7 +198,33 @@ public class RaceEnvironment implements EnvironmentInterface {
 
 	@Override
 	public String env_message(String message) {
-		return null;
+		if (message.startsWith("print-state")) {
+			dumpState();
+			return "Understood";
+		}
+		if (message.startsWith("reset")) {
+			reset();
+			return "Understood";
+		}
+		return "Message not understood";
+	}
+
+	private void reset() {
+		agent = new Position(start);
+	}
+
+	private void dumpState() {
+		System.out.println();
+		for (int y = 0 ; y < track.length ; y++) {
+			for (int x = 0 ; x < track[y].length ; x++) {
+				if (agent.equals(x, y)) {
+					System.out.print('*');
+				} else {
+					System.out.print(track[y][x].id);
+				}
+			}
+			System.out.println();
+		}
 	}
 
 	@Override
@@ -153,27 +234,28 @@ public class RaceEnvironment implements EnvironmentInterface {
 		return obs;
 	}
 
+	private int steps = 0;
 	@Override
 	public Reward_observation_terminal env_step(Action action) {
 		
+		steps++;
+		if (steps % 10 == 0) {
+			dumpState();
+		}
+		
 		int nAction = action.getInt(0);
 		Direction dir = Direction.get(nAction);
-		CellType ct = track[agentY][agentX];
-		dir = ct.T.attempt(dir);
-		int[] newPos = getNewPosition(dir);
-		if (outOufBounds(newPos) || outOfTrack(newPos)) {
-			newPos = new int[]{agentX, agentY};
+		
+		if (canMove(dir)) {
+			agent.move(dir);
 		}
-		// TODO: pasar estas variables a una clase Position -- Seu
-		agentX = newPos[0];
-		agentY = newPos[1];
 		
 		Reward_observation_terminal rot = new Reward_observation_terminal();
 		
 		Observation obs = new Observation(1, 0, 0);
 		obs.setInt(0, getWorldState());
 		
-		if (track[agentY][agentX].isTerminal()) {
+		if (track[agent.y][agent.x].isTerminal()) {
 			rot.setReward(TERMINATION_REWARD);
 			rot.setTerminal(true);
 			rot.setObservation(obs);
@@ -186,20 +268,27 @@ public class RaceEnvironment implements EnvironmentInterface {
 		return rot;
 	}
 
-	private boolean outOfTrack(int[] newPos) {
-		return track[newPos[1]][newPos[0]].isValid();
+	private boolean canMove(Direction dir) {
+		CellType ct = track[agent.y][agent.x];
+		dir = ct.T.attempt(dir);
+		Position newPos = agent.moveNew(dir);
+		return inBounds(newPos) && inTrack(newPos);
 	}
 
-	private boolean outOufBounds(int[] pos) {
-		return pos[0] < 0 || pos[0] >= TRACK_WIDTH || pos[1] < 0 || pos[1] >= TRACK_HEIGHT;
+	private boolean inTrack(Position pos) {
+		return track[pos.y][pos.x].isValid();
 	}
 
-	private int[] getNewPosition(Direction dir) {
-		return new int[] {agentX + dir.moveX, agentY + dir.moveY};
+	private boolean inBounds(Position pos) {
+		return pos.inBounds(0, 0, TRACK_WIDTH, TRACK_HEIGHT);
+	}
+
+	private Position getNewPosition(Direction dir) {
+		return agent.moveNew(dir.moveX, dir.moveY);
 	}
 
 	private int getWorldState() {
-		return agentY * TRACK_WIDTH + agentX;
+		return agent.y * TRACK_WIDTH + agent.x;
 	}
 
 	private int getNumStates() {
