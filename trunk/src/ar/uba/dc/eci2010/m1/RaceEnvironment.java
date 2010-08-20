@@ -15,14 +15,18 @@ import org.rlcommunity.rlglue.codec.types.Action;
 import org.rlcommunity.rlglue.codec.types.Observation;
 import org.rlcommunity.rlglue.codec.types.Reward_observation_terminal;
 
+import ar.uba.dc.eci2010.m1.agent.MDP;
+
 public class RaceEnvironment implements EnvironmentInterface {
 
 	/** La recompensa por cada paso que realiza sin llegar a la meta. Incentiva que llegue rapido. */
 	private static final int STEP_REWARD = -1;
 	/** La recompensa por llegar a la meta */
-	private static final int TERMINATION_REWARD = 10000;
-	private static final int TRACK_WIDTH  = 44;
-	private static final int TRACK_HEIGHT = 20;
+	private static final int TERMINATION_REWARD = 100;
+	public static int TRACK_WIDTH;
+	private int TRACK_HEIGHT;
+	
+	public static final int MAX_REWARD = TERMINATION_REWARD;
 	
 	private Position start;
 	
@@ -38,11 +42,6 @@ public class RaceEnvironment implements EnvironmentInterface {
 	private class Position {
 		public int x, y;
 		
-		public Position() {
-			this.x = 0;
-			this.y = 0;
-		}
-		
 		public Position(int x, int y) {
 			this.x = x;
 			this.y = y;
@@ -52,11 +51,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 			this.x = pos.x;
 			this.y = pos.y;
 		}
-/*
-		public boolean equals(Position p) {
-			return x == p.x && y == p.y;
-		}
-*/		
+
 		public boolean equals(int x, int y) {
 			return this.x == x && this.y == y;
 		}
@@ -171,6 +166,10 @@ public class RaceEnvironment implements EnvironmentInterface {
 			return name();
 		}
 	}
+
+	public RaceEnvironment(String trackFile) {
+		readMap(trackFile);
+	}
 	
 	@Override
 	public void env_cleanup() {
@@ -179,12 +178,20 @@ public class RaceEnvironment implements EnvironmentInterface {
 
 	/**
 	 * Lee el mapa desde archivo. No deberia hacer falta mas de una vez dado que no se altera.
+	 * @param fileName TODO
 	 */
-	private void readMap() {
+	private void readMap(String fileName) {
 		try {
-			track = new CellType[TRACK_HEIGHT][TRACK_WIDTH];
-			File file = new File("data/track.txt");
+			File file = new File(fileName);
 			BufferedReader reader = new BufferedReader(new FileReader(file));
+			
+			String wLine = reader.readLine();
+			TRACK_WIDTH = Integer.parseInt(wLine);
+			String hLine = reader.readLine();
+			TRACK_HEIGHT = Integer.parseInt(hLine);
+
+			track = new CellType[TRACK_HEIGHT][TRACK_WIDTH];
+			
 			for (int y = 0 ; y < TRACK_HEIGHT ; y++) {
 				String line = reader.readLine();
 				for (int x = 0 ; x < TRACK_WIDTH ; x++) {
@@ -208,7 +215,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 	public String env_init() {
 
 		if (track == null) {
-			readMap();
+			readMap("data/minitrack.txt");
 		}
 
 		reset();
@@ -282,6 +289,8 @@ public class RaceEnvironment implements EnvironmentInterface {
 
 	@Override
 	public Reward_observation_terminal env_step(Action action) {
+
+//		System.out.println(agent);
 		
 		if (outputMoves) {
 			dumpState();
@@ -301,18 +310,16 @@ public class RaceEnvironment implements EnvironmentInterface {
 		
 		Observation obs = new Observation(1, 0, 0);
 		obs.setInt(0, getWorldState());
-		
-		if (track[agent.y][agent.x].isTerminal()) {
-			rot.setReward(TERMINATION_REWARD);
-			rot.setTerminal(true);
-			rot.setObservation(obs);
-		} else {
-			rot.setReward(STEP_REWARD);
-			rot.setTerminal(false);
-			rot.setObservation(obs);
-		}
-		
+
+		rot.setReward(stateReward(track[agent.y][agent.x]));
+		rot.setTerminal(track[agent.y][agent.x].isTerminal());
+		rot.setObservation(obs);
+
 		return rot;
+	}
+
+	private double stateReward(CellType cellType) {
+		return cellType.isTerminal() ? TERMINATION_REWARD : STEP_REWARD;
 	}
 
 	private boolean inTrack(Position pos) {
@@ -324,11 +331,109 @@ public class RaceEnvironment implements EnvironmentInterface {
 	}
 
 	private int getWorldState() {
-		return agent.y * TRACK_WIDTH + agent.x;
+		return getState(agent);
 	}
 
+	private int getState(Position pos) {
+		return pos.y * TRACK_WIDTH + pos.x;
+	}
+	
+	private Position getPosition(int state) {
+		return new Position(state%TRACK_WIDTH, state/TRACK_WIDTH);
+	}
+
+	private CellType getCellType(int state) {
+		return track[state/TRACK_WIDTH][state%TRACK_WIDTH];
+	}
+	
 	private int getNumStates() {
 		return TRACK_HEIGHT * TRACK_WIDTH;
+	}
+	
+	private int getStateInDirection(int fromState, Direction dir) {
+		Position pos = getPosition(fromState);
+		pos.move(dir);
+		if (!inBounds(pos) || !inTrack(pos)) {
+			return fromState;
+		}
+		return getState(pos);
+	}
+
+	
+	public MDP getMDP() {
+		return new RaceMDP(TRACK_WIDTH * TRACK_HEIGHT, 4);
+	}
+
+	public class RaceMDP implements MDP {
+		private double P[][][];
+		private final int numStates;
+		private final int numActions;
+		
+		public RaceMDP(int numStates, int numActions) {
+			this.numStates = numStates;
+			this.numActions = numActions;
+
+			P = new double[numStates][numActions][numStates];
+			for (int s = 0 ; s < numStates ; s++) {
+				CellType ct = getCellType(s);
+				if (!ct.isValid()) {
+					continue;
+				}
+				double sum = 0;
+				for (int a = 0 ; a < numActions ; a++) {
+					
+					Direction dir = Direction.get(a);
+					int newState = getStateInDirection(s, dir);
+					P[s][a][newState] += ct.T.getPDir(0);
+					sum += P[s][a][newState];
+					
+					Direction right = dir.getRight();
+					newState = getStateInDirection(s, right);
+					P[s][a][newState] += ct.T.getPDir(1);
+					sum += P[s][a][newState];
+					
+					Direction back = dir.getBack();
+					newState = getStateInDirection(s, back);
+					P[s][a][newState] += ct.T.getPDir(2);
+					sum += P[s][a][newState];
+					
+					Direction left = dir.getLeft();
+					newState = getStateInDirection(s, left);
+					P[s][a][newState] += ct.T.getPDir(3);
+					sum += P[s][a][newState];
+					
+/*
+					for (int s2 = 0 ; s2 < numStates ; s2++) {
+						P[s][a][s2] = 0;
+					}
+*/
+				}
+			}
+		}
+		
+		@Override
+		public double getP(int fromState, int action, int toState) {
+//			if (P[fromState][action][toState] == -1) {
+//				double p = 0; // Si no es el estado en ninguna de las direcciones... la P es 0
+//				CellType fromType = getCellType(fromState);
+//				Direction dir = Direction.get(action);
+//				for (int i = 0 ; i < numActions ; i++) { // Busca en cada direccion si es posible llegar y cual es la prob. en la T
+//					int newState = getStateInDirection(fromState, dir);
+//					if (newState == toState) {
+//						p = fromType.T.getPDir(dir);
+//					}
+//					dir = dir.getRight();
+//				}
+//				P[fromState][action][toState] = p;
+//			}
+			return P[fromState][action][toState];
+		}
+
+		@Override
+		public double getReward(int state) {
+			CellType ct = getCellType(state);
+			return stateReward(ct);
+		} 
 	}
 
 }

@@ -19,14 +19,32 @@ public class Transition {
 	private float left;
 	private float right;
 	private float back;
+
+	private float[] p = new float[4];
 	
 	private static final Random random = new Random();
 	
 	public Transition(float fwd, float left, float right, float back) {
+		this.p[0] = fwd;
+		this.p[1] = right;
+		this.p[2] = back;
+		this.p[3] = left;
 		this.fwd = fwd;
 		this.right = right + fwd;
 		this.back = back + right + fwd;
 		this.left = left + back + right + fwd;
+	}
+	
+	public float getAdvanceP() {
+		return fwd;
+	}
+
+	public float getPDir(int action) {
+		return p[action];
+	}
+	
+	public float getPDir(Direction dir) {
+		return p[dir.ordinal()];
 	}
 	
 	public Direction attempt(Direction dir) {
