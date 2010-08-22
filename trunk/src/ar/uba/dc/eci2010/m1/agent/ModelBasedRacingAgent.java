@@ -232,7 +232,6 @@ public class ModelBasedRacingAgent implements AgentInterface {
 				// Si jamas tomo esta accion desde aca, asumo que es optima
 				if (st.getTimesTaken(a) == 0) {
 					r = DISCOUNT_RATE * (maxReward / (1 - DISCOUNT_RATE));
-					
 				} else {
 					for (State to : st.getVisitableStates(a)) {
 						// Si no es conocida, uso los valores Vmax y p = 1
