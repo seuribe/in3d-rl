@@ -7,6 +7,7 @@ import org.rlcommunity.rlglue.codec.EnvironmentInterface;
 import org.rlcommunity.rlglue.codec.LocalGlue;
 import org.rlcommunity.rlglue.codec.RLGlue;
 import ar.uba.dc.eci2010.m1.agent.ModelBasedRacingAgent;
+import ar.uba.dc.eci2010.m1.agent.modelfree.QAgent;
 
 /**
  * 
@@ -57,7 +58,7 @@ public class RaceExperiment {
 
 	@Test
 	public void runModelFreeTest() {
-		agent = new SampleSarsaAgent();
+		agent = new QAgent();
 		glue = new LocalGlue(env, agent);
 		RLGlue.setGlue(glue);
 		
