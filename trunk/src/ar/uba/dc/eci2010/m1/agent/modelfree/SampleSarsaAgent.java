@@ -1,4 +1,4 @@
-package ar.uba.dc.eci2010.m1;
+package ar.uba.dc.eci2010.m1.agent.modelfree;
 /*
  * Copyright 2008 Brian Tanner
  * http://rl-glue-ext.googlecode.com/
