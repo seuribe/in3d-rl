@@ -20,7 +20,7 @@ public class RaceExperiment {
 
 	@Before
 	public void setupEnv() {
-		env = new RaceEnvironment("data/track.txt");
+		env = new RaceEnvironment("data/midtrack.txt");
 	}
 
 	@Test
@@ -33,30 +33,29 @@ public class RaceExperiment {
 		
 		// Learn model
 		System.out.println("learning model...");
-		roamWithNoLearning(10000);
+		RLGlue.RL_agent_message("learn-model");
+		runEpisodes(1, 100000);
 
 		// Learn V
 		System.out.println("running experiments...");
-		runEpisodes(100, 1000);
+		RLGlue.RL_agent_message("normal");
+		RLGlue.RL_agent_message("reset-known");
+		runEpisodes(100, 10000);
 
 		// Evaluate
 		System.out.println("Evaluating...");
-		evaluate();
+		RLGlue.RL_agent_message("evaluate");
+		evaluate(100, 1000);
 	}
 
-	private void runEpisodes(int n, int steps) {
-		for (int i = 0 ; i < n ; i++) {
+	private void runEpisodes(int nEpisodes, int steps) {
+		for (int i = 0 ; i < nEpisodes ; i++) {
 			RLGlue.RL_episode(steps);
 			System.out.println(RLGlue.RL_num_steps());
 		}
 	}
 
-	private void roamWithNoLearning(int steps) {
-		RLGlue.RL_agent_message("freeze learning");
-		RLGlue.RL_episode(steps);
-		RLGlue.RL_agent_message("unfreeze learning");
-	}
-	
+	@Test
 	public void runModelFreeTest() {
 		agent = new SampleSarsaAgent();
 		glue = new LocalGlue(env, agent);
@@ -70,23 +69,22 @@ public class RaceExperiment {
 
 		// Evaluate
 		System.out.println("Evaluating...");
-		evaluate();
+		RLGlue.RL_agent_message("freeze-learning");
+		evaluate(100, 10000);
 	}
 	
-	public void evaluate() {
-		RLGlue.RL_agent_message("freeze learning");
+	public void evaluate(int nEpisodes, int steps) {
 		double sum = 0;
 		double sum_squares = 0;
-		final int N_EPISODES = 100;
-		for (int i = 0; i < N_EPISODES; i++) {
-            RLGlue.RL_episode(1000);
+		for (int i = 0; i < nEpisodes; i++) {
+            RLGlue.RL_episode(steps);
             double ret = RLGlue.RL_num_steps();
             sum += ret;
             sum_squares += ret * ret;
         }
 
-		double mean = sum / (double)N_EPISODES;
-		double variance = (sum_squares - (double)N_EPISODES * mean * mean) / ((double)N_EPISODES - 1.0f);
+		double mean = sum / (double)nEpisodes;
+		double variance = (sum_squares - (double)nEpisodes * mean * mean) / ((double)nEpisodes - 1.0f);
 		System.out.println("mean: " + mean + ", variance: " + variance);
 
 		RLGlue.RL_agent_message("unfreeze learning");
