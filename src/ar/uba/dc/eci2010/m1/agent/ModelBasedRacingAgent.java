@@ -26,12 +26,13 @@ public class ModelBasedRacingAgent implements AgentInterface {
     private Observation lastObservation;
 
     private static final double DISCOUNT_RATE = 0.95;
-    private static final double ITERATE_ERROR = 0.05;
+    private static final double ITERATE_ERROR = 0.01;
     
     private AgentState runningState = AgentState.NormalRun;
     
     private Map<Integer, State> states = new HashMap<Integer, State>();
 	private double Vmax;
+	private int iterations;
     
     public enum AgentState {
     	NormalRun, Evaluate;
@@ -314,7 +315,6 @@ public class ModelBasedRacingAgent implements AgentInterface {
 		switch (runningState) {
 			case NormalRun:
 				if (!to.isKnown()) {
-					int iterations = 0;
 					while (valueIterate() > ITERATE_ERROR) {
 						iterations++;
 					}
@@ -338,7 +338,7 @@ public class ModelBasedRacingAgent implements AgentInterface {
 
 	@Override
 	public void agent_end(double reward) {
-		//
+		System.out.println(reward + ", " + iterations);
 	}
 
 	/**
