@@ -21,7 +21,7 @@ public class RaceExperiment {
 
 	@Before
 	public void setupEnv() {
-		env = new RaceEnvironment("data/midtrack.txt");
+		env = new RaceEnvironment("data/bigtrack.txt");
 	}
 
 	@Test
@@ -58,7 +58,7 @@ public class RaceExperiment {
 		RLGlue.RL_agent_message("normal");
 //		RLGlue.RL_agent_message("reset-known");
 //		RLGlue.RL_env_message("show moves");
-		runEpisodes(10, totalCells * 10, true);
+		runEpisodes(20, totalCells * 10, true);
 
 		// Evaluate
 		System.out.println("Evaluating...");
@@ -96,7 +96,7 @@ public class RaceExperiment {
 		
 		// Learn V
 		System.out.println("running experiments...");
-		runEpisodes(400, 1000, false);
+		runEpisodes(200, 1000, true);
 
 		// Evaluate
 		System.out.println("Evaluating...");
