@@ -22,7 +22,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 	/** La recompensa por cada paso que realiza sin llegar a la meta. Incentiva que llegue rapido. */
 	private static final int STEP_REWARD = -1;
 	/** La recompensa por llegar a la meta */
-	private static final int TERMINATION_REWARD = 100;
+	private static final int TERMINATION_REWARD = 1000;
 	public static int TRACK_WIDTH;
 	private int TRACK_HEIGHT;
 	
@@ -36,6 +36,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 	private boolean outputMoves = false;
 	/** Debug!!! */
 	private int[][] agentPolicy;
+	private boolean[][] agentKnown;
 
 	/**
 	 * Modela la posicion del agente en el entorno 
@@ -259,7 +260,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 			int state = Integer.parseInt(tokens[1]);
 			int policy = Integer.parseInt(tokens[2]);
 			agentPolicy[state/TRACK_WIDTH][state%TRACK_WIDTH] = policy;
-			
+			return "Understood";
 		}
 		return "Message not understood";
 	}
@@ -275,6 +276,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 				agentPolicy[y][x] = -1;
 			}
 		}
+		agentKnown = new boolean[TRACK_HEIGHT][TRACK_WIDTH];
 	}
 
 	/**

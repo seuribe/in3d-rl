@@ -26,13 +26,15 @@ public class ModelBasedRacingAgent implements AgentInterface {
     private Observation lastObservation;
 
     private static final double DISCOUNT_RATE = 0.95;
+    private static final double ITERATE_ERROR = 0.05;
     
     private AgentState runningState = AgentState.NormalRun;
     
     private Map<Integer, State> states = new HashMap<Integer, State>();
+	private double Vmax;
     
     public enum AgentState {
-    	LearnModel, NormalRun, Evaluate;
+    	NormalRun, Evaluate;
     }
     
     /**
@@ -88,6 +90,8 @@ public class ModelBasedRacingAgent implements AgentInterface {
     		actionTaken[action]++;
     		Transition t = getTransitionTo(action, to);
 			t.taken();
+//			System.out.println(actionTaken[0] + " " + actionTaken[1] + " " + actionTaken[2] + " " + actionTaken[3]);
+
 //			System.out.println("Transition taken from " + this + " to " + to);
     	}
 
@@ -121,7 +125,8 @@ public class ModelBasedRacingAgent implements AgentInterface {
 					return false;
 				}
 			}
-			return visited > minKnownState;
+//			return visited > minKnownState;
+			return true;
 		}
 		
 		/**
@@ -160,25 +165,6 @@ public class ModelBasedRacingAgent implements AgentInterface {
     	public String toString() {
     		return "[id: " + id + ", coords = " + (id%RaceEnvironment.TRACK_WIDTH) + "," + (id/RaceEnvironment.TRACK_WIDTH) + "]";// TRAMPA! pero es para debugging...
     	}
-/*
-		public int timesVisited() {
-			return visited;
-		}
-*/		
-		/**
-		 * Determina la mejor accion desde el estado con el fin de explorar lo mas posible
-		 * @param state
-		 * @return
-		 */
-		private int getBestExploreAction() {
-			int minTaken = 0;
-			for (int a = 0 ; a < numActions ; a++) {
-				if (actionTaken[a] < actionTaken[minTaken]) {
-					minTaken = a;
-				}
-			}
-			return minTaken;
-		}
 
 		public void resetKnown() {
 			visited = 0;
@@ -189,19 +175,15 @@ public class ModelBasedRacingAgent implements AgentInterface {
 	private double valueIterate() {
 		double maxChange = 0;
 		for (State st : states.values()) {
+
 			double prevValue = st.V;
-//			double maxR = 0;
 			int maxA = 0;
-			double actionValues[] = new double[numActions]; 
+
+			double actionValues[] = new double[numActions];
 			for (int a = 0 ; a < numActions ; a++) {
-
 				actionValues[a] = getActionValue(st, a);
-
-//				if (r > maxR) {
-//					maxA = a;
-//					maxR = r;
-//				}
 			}
+
 			maxA = getBestAction(actionValues);
 			st.V = actionValues[maxA];
 			st.policy = maxA;
@@ -210,7 +192,6 @@ public class ModelBasedRacingAgent implements AgentInterface {
 		}
 		return maxChange;
 	}
-
 
 	private int getBestAction(double[] actionValues) {
 		double max = actionValues[0];
@@ -234,18 +215,18 @@ public class ModelBasedRacingAgent implements AgentInterface {
 
 	private double getActionValue(State st, int a) {
 		double r = 0;
-		// Si jamas tomo esta accion desde aca, asumo que es optima
-		if (st.getTimesTaken(a) == 0) {
-			r = st.reward + DISCOUNT_RATE * (maxReward / (1 - DISCOUNT_RATE));
+		// Si no tomo suficientes veces esta accion desde aca, asumo que es optima
+		if (st.getTimesTaken(a) < (minKnownState/numActions)) {
+			r = st.reward + Vmax;
 		} else {
 			// Si ya la tomo, 
 			for (State to : st.getVisitableStates(a)) {
 				Transition t = st.getTransitionTo(a, to);
 				// Si no es conocida, uso los valores Vmax y p = 1
 				if (!t.isKnown()) {
-					r += st.reward + DISCOUNT_RATE * (maxReward / (1 - DISCOUNT_RATE));
+					r += st.reward + Vmax;
 				} else {
-					// Si es conocida, uso el p observado y el valor de V[s2] que corresponde
+					// Si es conocida, uso el p observado y el valor de V que corresponde
 					r += st.getP(a, to) * (st.reward + DISCOUNT_RATE * to.V);
 				}
 			}
@@ -268,8 +249,8 @@ public class ModelBasedRacingAgent implements AgentInterface {
 //		System.out.println("ModelBasedRacingAgent.agent_init()");
 		TaskSpecVRLGLUE3 spec = new TaskSpecVRLGLUE3(taskSpecification);
 		maxReward = spec.getRewardRange().getMax();
+		Vmax = DISCOUNT_RATE * (maxReward / (1 - DISCOUNT_RATE));
 		
-//        numStates = spec.getDiscreteObservationRange(0).getMax() + 1;
         numActions = spec.getDiscreteActionRange(0).getMax() + 1;
 
 		initializeTables();
@@ -287,10 +268,7 @@ public class ModelBasedRacingAgent implements AgentInterface {
 
 	@Override
 	public String agent_message(String message) {
-		if (message.startsWith("learn-model")) {
-			runningState = AgentState.LearnModel;
-			return "Ok!";
-		} else if (message.startsWith("normal")) {
+		if (message.startsWith("normal")) {
 			runningState = AgentState.NormalRun;
 			return "Ok!";
 		} else if (message.startsWith("evaluate")) {
@@ -334,12 +312,13 @@ public class ModelBasedRacingAgent implements AgentInterface {
 
 		int newAction = 0;
 		switch (runningState) {
-			case LearnModel:
-				newAction = to.getBestExploreAction();
-				break;
 			case NormalRun:
 				if (!to.isKnown()) {
-					valueIterate();
+					int iterations = 0;
+					while (valueIterate() > ITERATE_ERROR) {
+						iterations++;
+					}
+//					System.out.println(iterations);
 				}
 			case Evaluate:
 				newAction = to.policy;
