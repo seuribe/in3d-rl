@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Random;
 
 import org.rlcommunity.rlglue.codec.AgentInterface;
+import org.rlcommunity.rlglue.codec.RLGlue;
 import org.rlcommunity.rlglue.codec.taskspec.TaskSpecVRLGLUE3;
 import org.rlcommunity.rlglue.codec.types.Action;
 import org.rlcommunity.rlglue.codec.types.Observation;
@@ -17,9 +18,10 @@ public class ModelBasedRacingAgent implements AgentInterface {
 //	private int numStates;
 	private int numActions;
 	private double maxReward;
-	private int minKnown;
+	private int minKnownState;
+	private int minKnownTransition;
 
-//    private Random random = new Random();
+    private Random random = new Random();
     private Action lastAction;
     private Observation lastObservation;
 
@@ -33,8 +35,14 @@ public class ModelBasedRacingAgent implements AgentInterface {
     	LearnModel, NormalRun, Evaluate;
     }
     
-    public ModelBasedRacingAgent(int minKnown) {
-    	this.minKnown = minKnown;
+    /**
+     * 
+     * @param minKnownState Cantidad de veces que debe visitar un estado para considerarlo conocido
+     * @param minKnownTransition Cantidad de veces que debe realizar una transicion para considerarla conocida
+     */
+    public ModelBasedRacingAgent(int minKnownState, int minKnownTransition) {
+    	this.minKnownState = minKnownState;
+    	this.minKnownTransition = minKnownTransition;
     }
     
 	private class Transition {
@@ -51,6 +59,10 @@ public class ModelBasedRacingAgent implements AgentInterface {
 		
 		public void taken() {
 			timesTaken++;
+		}
+		
+		public boolean isKnown() {
+			return timesTaken < minKnownTransition;
 		}
 		
 	}
@@ -104,7 +116,12 @@ public class ModelBasedRacingAgent implements AgentInterface {
 		}
 		
 		public boolean isKnown() {
-			return visited > minKnown;
+			for (int a = 0 ; a < numActions ; a++) {
+				if (actionTaken[a] < minKnownTransition) {
+					return false;
+				}
+			}
+			return visited > minKnownState;
 		}
 		
 		/**
@@ -115,7 +132,9 @@ public class ModelBasedRacingAgent implements AgentInterface {
 		 */
 		public double getP(int action, State state) {
 			Transition t = getTransitionTo(action, state);
-			return actionTaken[action] / t.timesTaken;
+			double p = t.timesTaken / actionTaken[action];
+			assert(p <= 1);
+			return p;
 		}
 
 		public List<State> getVisitableStates(int action) {
@@ -129,7 +148,7 @@ public class ModelBasedRacingAgent implements AgentInterface {
 			}
 			return ret;
 		}
-
+/*
 		private List<Transition> getAllTransitions() {
 			List<Transition> alltrans = new ArrayList<Transition>();
 			for (Map<State, Transition> values : trans.values()) {
@@ -137,15 +156,15 @@ public class ModelBasedRacingAgent implements AgentInterface {
 			}
 			return alltrans;
 		}
-
+*/
     	public String toString() {
     		return "[id: " + id + ", coords = " + (id%RaceEnvironment.TRACK_WIDTH) + "," + (id/RaceEnvironment.TRACK_WIDTH) + "]";// TRAMPA! pero es para debugging...
     	}
-
+/*
 		public int timesVisited() {
 			return visited;
 		}
-		
+*/		
 		/**
 		 * Determina la mejor accion desde el estado con el fin de explorar lo mas posible
 		 * @param state
@@ -171,36 +190,67 @@ public class ModelBasedRacingAgent implements AgentInterface {
 		double maxChange = 0;
 		for (State st : states.values()) {
 			double prevValue = st.V;
-			double maxR = 0;
+//			double maxR = 0;
 			int maxA = 0;
+			double actionValues[] = new double[numActions]; 
 			for (int a = 0 ; a < numActions ; a++) {
 
-				double r = 0;
-				// Si jamas tomo esta accion desde aca, asumo que es optima
-				if (st.getTimesTaken(a) == 0) {
-					r = DISCOUNT_RATE * (maxReward / (1 - DISCOUNT_RATE));
-				} else {
-					for (State to : st.getVisitableStates(a)) {
-						// Si no es conocida, uso los valores Vmax y p = 1
-//						if (!to.isKnown()) {
-//							r += (st.reward + DISCOUNT_RATE * (maxReward / (1 - DISCOUNT_RATE)));
-//						} else {
-							// Si es conocida, uso el p observado y el valor de V[s2] que corresponde
-							r += st.getP(a, to) * (to.reward + DISCOUNT_RATE * to.V);
-//						}
-					}
-				}
+				actionValues[a] = getActionValue(st, a);
 
-				if (r > maxR) {
-					maxA = a;
-					maxR = r;
-				}
+//				if (r > maxR) {
+//					maxA = a;
+//					maxR = r;
+//				}
 			}
-			st.V = maxR;
+			maxA = getBestAction(actionValues);
+			st.V = actionValues[maxA];
 			st.policy = maxA;
+			RLGlue.RL_env_message("set-policy "  + st.id + " " + st.policy);
 			maxChange = Math.max(maxChange, Math.abs(prevValue - st.V));
 		}
 		return maxChange;
+	}
+
+
+	private int getBestAction(double[] actionValues) {
+		double max = actionValues[0];
+		for (int a = 0 ; a < actionValues.length ; a++) {
+			if ((double)actionValues[a] > max) {
+				max = actionValues[a];
+			}
+		}
+		List<Integer> maxList = new ArrayList<Integer>();
+		for (int a = 0 ; a < actionValues.length ; a++) {
+			if (actionValues[a] == max) {
+				maxList.add(a);
+			}
+		}
+		if (maxList.size() == 0) {
+			System.out.println("problem!! " + actionValues);
+		}
+		return maxList.get(random.nextInt(maxList.size()));
+	}
+
+
+	private double getActionValue(State st, int a) {
+		double r = 0;
+		// Si jamas tomo esta accion desde aca, asumo que es optima
+		if (st.getTimesTaken(a) == 0) {
+			r = st.reward + DISCOUNT_RATE * (maxReward / (1 - DISCOUNT_RATE));
+		} else {
+			// Si ya la tomo, 
+			for (State to : st.getVisitableStates(a)) {
+				Transition t = st.getTransitionTo(a, to);
+				// Si no es conocida, uso los valores Vmax y p = 1
+				if (!t.isKnown()) {
+					r += st.reward + DISCOUNT_RATE * (maxReward / (1 - DISCOUNT_RATE));
+				} else {
+					// Si es conocida, uso el p observado y el valor de V[s2] que corresponde
+					r += st.getP(a, to) * (st.reward + DISCOUNT_RATE * to.V);
+				}
+			}
+		}
+		return r;
 	}
     
 
@@ -215,7 +265,7 @@ public class ModelBasedRacingAgent implements AgentInterface {
    
 	@Override
 	public void agent_init(String taskSpecification) {
-		System.out.println("ModelBasedRacingAgent.agent_init()");
+//		System.out.println("ModelBasedRacingAgent.agent_init()");
 		TaskSpecVRLGLUE3 spec = new TaskSpecVRLGLUE3(taskSpecification);
 		maxReward = spec.getRewardRange().getMax();
 		
@@ -288,7 +338,7 @@ public class ModelBasedRacingAgent implements AgentInterface {
 				newAction = to.getBestExploreAction();
 				break;
 			case NormalRun:
-				if (to.timesVisited() == 1) {
+				if (!to.isKnown()) {
 					valueIterate();
 				}
 			case Evaluate:
@@ -310,6 +360,18 @@ public class ModelBasedRacingAgent implements AgentInterface {
 	@Override
 	public void agent_end(double reward) {
 		//
+	}
+
+	/**
+	 * -1 = unknown
+	 * @param state
+	 * @return
+	 */
+	public int getPolicy(int state) {
+		if (states.containsKey(state)) {
+			return getState(state).policy;
+		}
+		return -1;
 	}
 	
 }
