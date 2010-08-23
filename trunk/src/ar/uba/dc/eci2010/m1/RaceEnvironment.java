@@ -34,6 +34,8 @@ public class RaceEnvironment implements EnvironmentInterface {
 	
 	private CellType[][] track;
 	private boolean outputMoves = false;
+	/** Debug!!! */
+	private int[][] agentPolicy;
 
 	/**
 	 * Modela la posicion del agente en el entorno 
@@ -252,6 +254,13 @@ public class RaceEnvironment implements EnvironmentInterface {
 			reset();
 			return "Understood";
 		}
+		if (message.startsWith("set-policy")) {
+			String[] tokens = message.split(" ");
+			int state = Integer.parseInt(tokens[1]);
+			int policy = Integer.parseInt(tokens[2]);
+			agentPolicy[state/TRACK_WIDTH][state%TRACK_WIDTH] = policy;
+			
+		}
 		return "Message not understood";
 	}
 
@@ -260,6 +269,12 @@ public class RaceEnvironment implements EnvironmentInterface {
 	 */
 	private void reset() {
 		agent = new Position(start);
+		agentPolicy = new int[TRACK_HEIGHT][TRACK_WIDTH];
+		for (int y = 0 ; y < TRACK_HEIGHT ; y++) {
+			for (int x = 0 ; x < TRACK_WIDTH ; x++) {
+				agentPolicy[y][x] = -1;
+			}
+		}
 	}
 
 	/**
@@ -275,8 +290,21 @@ public class RaceEnvironment implements EnvironmentInterface {
 					System.out.print(track[y][x].id);
 				}
 			}
+			System.out.print(" ");
+			for (int x = 0 ; x < track[y].length ; x++) {
+				if (agentPolicy[y][x] == -1) {
+					System.out.print(' ');
+				} else {
+					System.out.print(agentPolicy[y][x]);
+				}
+			}
 			System.out.println();
 		}
+	}
+
+	private void dumpState(int action, Position oldPos, Position newPos) {
+		System.out.println("action: " + Direction.get(action) + "(" + action + "), " + oldPos + " -> " + newPos);
+		dumpState();
 	}
 
 	@Override
@@ -292,20 +320,26 @@ public class RaceEnvironment implements EnvironmentInterface {
 
 //		System.out.println(agent);
 		
-		if (outputMoves) {
-			dumpState();
-		}
-		
 		int nAction = action.getInt(0);
 		Direction dir = Direction.get(nAction);
 
 		CellType ct = track[agent.y][agent.x];
 		dir = ct.T.attempt(dir);
+		Position oldPos = new Position(agent);
 		Position newPos = agent.moveNew(dir);
 		if (inBounds(newPos) && inTrack(newPos)) {
 			agent.move(dir);
 		}
 
+		if (outputMoves) {
+			dumpState(nAction, oldPos, agent);
+//			try {
+//				Thread.sleep(5);
+//			} catch (InterruptedException e) {
+//				e.printStackTrace();
+//			}
+		}
+		
 		Reward_observation_terminal rot = new Reward_observation_terminal();
 		
 		Observation obs = new Observation(1, 0, 0);
