@@ -5,7 +5,6 @@ package ar.uba.dc.eci2010.m1;
 
 import java.util.Random;
 
-import ar.uba.dc.eci2010.m1.RaceEnvironment.Direction;
 
 /**
  * Modela la funcion de transicion para distintos tipos de celdas. Dado que los posibles movimientos son

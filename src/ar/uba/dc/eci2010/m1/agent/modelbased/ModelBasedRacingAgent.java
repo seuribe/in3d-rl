@@ -1,4 +1,4 @@
-package ar.uba.dc.eci2010.m1.agent;
+package ar.uba.dc.eci2010.m1.agent.modelbased;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -14,8 +14,13 @@ import org.rlcommunity.rlglue.codec.types.Observation;
 
 import ar.uba.dc.eci2010.m1.RaceEnvironment;
 
+/**
+ * Agente model-based basado en Rmax
+ * 
+ * @author suribe
+ *
+ */
 public class ModelBasedRacingAgent implements AgentInterface {
-//	private int numStates;
 	private int numActions;
 	private double maxReward;
 	private int minKnownState;
@@ -25,7 +30,9 @@ public class ModelBasedRacingAgent implements AgentInterface {
     private Action lastAction;
     private Observation lastObservation;
 
+    /** Factor de descuento */
     private static final double DISCOUNT_RATE = 0.95;
+    /** Factor de error maximo tolerado en cada iteracion de value-iteration */
     private static final double ITERATE_ERROR = 0.01;
     
     private AgentState runningState = AgentState.NormalRun;
@@ -34,6 +41,11 @@ public class ModelBasedRacingAgent implements AgentInterface {
 	private double Vmax;
 	private int iterations;
     
+	/**
+	 * Estado actual del agente: normal o en modo evaluacion (no aprende mas)
+	 * @author suribe
+	 *
+	 */
     public enum AgentState {
     	NormalRun, Evaluate;
     }
@@ -48,6 +60,11 @@ public class ModelBasedRacingAgent implements AgentInterface {
     	this.minKnownTransition = minKnownTransition;
     }
     
+    /**
+     * Transicion de un estado a otro.
+     * 
+     * @author suribe
+     */
 	private class Transition {
 		public final State from;
 		public final State to;
@@ -70,6 +87,11 @@ public class ModelBasedRacingAgent implements AgentInterface {
 		
 	}
     
+	/**
+	 * Modela los estados del entorno, junto con Transition
+	 * 
+	 * @author suribe
+	 */
     private class State {
 		public final int id;
     	private Map<Integer, Map<State, Transition>> trans;
@@ -91,9 +113,6 @@ public class ModelBasedRacingAgent implements AgentInterface {
     		actionTaken[action]++;
     		Transition t = getTransitionTo(action, to);
 			t.taken();
-//			System.out.println(actionTaken[0] + " " + actionTaken[1] + " " + actionTaken[2] + " " + actionTaken[3]);
-
-//			System.out.println("Transition taken from " + this + " to " + to);
     	}
 
     	/** Cantidad de veces que tomo esta accion desde ahi */
@@ -126,7 +145,6 @@ public class ModelBasedRacingAgent implements AgentInterface {
 					return false;
 				}
 			}
-//			return visited > minKnownState;
 			return true;
 		}
 		
@@ -214,6 +232,13 @@ public class ModelBasedRacingAgent implements AgentInterface {
 	}
 
 
+	/**
+	 * Evalua el retorno de ejecutar una accion a partir del estado dado
+	 * 
+	 * @param st
+	 * @param a
+	 * @return
+	 */
 	private double getActionValue(State st, int a) {
 		double r = 0;
 		// Si no tomo suficientes veces esta accion desde aca, asumo que es optima
@@ -235,7 +260,6 @@ public class ModelBasedRacingAgent implements AgentInterface {
 		return r;
 	}
     
-
     private State getState(int id) {
     	State st = states.get(id);
     	if (st == null) {
@@ -247,18 +271,12 @@ public class ModelBasedRacingAgent implements AgentInterface {
    
 	@Override
 	public void agent_init(String taskSpecification) {
-//		System.out.println("ModelBasedRacingAgent.agent_init()");
 		TaskSpecVRLGLUE3 spec = new TaskSpecVRLGLUE3(taskSpecification);
 		maxReward = spec.getRewardRange().getMax();
 		Vmax = DISCOUNT_RATE * (maxReward / (1 - DISCOUNT_RATE));
 		
         numActions = spec.getDiscreteActionRange(0).getMax() + 1;
 
-		initializeTables();
-	}
-
-	private void initializeTables() {
-		// TODO: ver si hace falta resetar el grafo de estados -- Seu
 	}
 	
 	private void resetKnownStates() {
@@ -333,16 +351,16 @@ public class ModelBasedRacingAgent implements AgentInterface {
 
 	@Override
 	public void agent_cleanup() {
-		initializeTables();
 	}
 
 	@Override
 	public void agent_end(double reward) {
-		System.out.println(reward + ", " + iterations);
 	}
 
 	/**
 	 * -1 = unknown
+	 * Usado para debugging
+	 * 
 	 * @param state
 	 * @return
 	 */

@@ -1,6 +1,7 @@
 package ar.uba.dc.eci2010.m1;
 
 import java.io.BufferedReader;
+
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -15,7 +16,12 @@ import org.rlcommunity.rlglue.codec.types.Action;
 import org.rlcommunity.rlglue.codec.types.Observation;
 import org.rlcommunity.rlglue.codec.types.Reward_observation_terminal;
 
-import ar.uba.dc.eci2010.m1.agent.MDP;
+/**
+ * El entorno en que corren los agentes. Modela una pista discreta con celdas con distintos tipos de transiciones
+ * 
+ * @author suribe
+ *
+ */
 
 public class RaceEnvironment implements EnvironmentInterface {
 
@@ -36,97 +42,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 	private boolean outputMoves = false;
 	/** Debug!!! */
 	private int[][] agentPolicy;
-	private boolean[][] agentKnown;
 
-	/**
-	 * Modela la posicion del agente en el entorno 
-	 *
-	 */
-	private class Position {
-		public int x, y;
-		
-		public Position(int x, int y) {
-			this.x = x;
-			this.y = y;
-		}
-		
-		public Position(Position pos) {
-			this.x = pos.x;
-			this.y = pos.y;
-		}
-
-		public boolean equals(int x, int y) {
-			return this.x == x && this.y == y;
-		}
-		public Position moveNew(int moveX, int moveY) {
-			return new Position(this.x + moveX, this.y + moveY);
-		}
-		public boolean inBounds(int minx, int miny, int maxx, int maxy) {
-			return x >= minx && y >= miny && x < maxx && y < maxy;
-		}
-
-		public Position moveNew(Direction dir) {
-			return moveNew(dir.moveX, dir.moveY);
-		}
-
-		public void move(Direction dir) {
-			x += dir.moveX;
-			y += dir.moveY;
-		}
-		
-		public String toString() {
-			return "(" + x + "," + y + ")";
-		}
-	}
-	
-	/**
-	 * Modela la direccion en que puede decidir avanzar el agente. Dependiendo del terreno - y su funcion de transicion - 
-	 * puede ser que avance en esa direccion o en otra.
-	 * 
-	 */
-	public static enum Direction {
-		NORTH(0, 1, 2, 3, 0, -1), EAST(1, 2, 3, 0, 1, 0), SOUTH(2, 3, 0, 1, 0, 1), WEST(3, 0, 1, 2, -1, 0), NONE(4, 4, 4, 4, 0, 0);
-
-		private int index;
-		private final int right;
-		private final int back;
-		private final int left;
-		private final int moveX;
-		private final int moveY;
-
-		private Direction(int index, int right, int back, int left, int moveX, int moveY) {
-			this.index = index;
-			this.right = right;
-			this.back = back;
-			this.left = left;
-			this.moveX = moveX;
-			this.moveY = moveY;
-		}
-		
-		public Direction getRight() {
-			return values()[right];
-		}
-		public Direction getBack() {
-			return values()[back];
-		}
-		public Direction getLeft() {
-			return values()[left];
-		}
-
-		public static Direction get(int index) {
-			for (Direction dir : values()) {
-				if (dir.index == index) {
-					return dir;
-				}
-			}
-			return null;
-		}
-		
-		public String toString() {
-			return name();
-		}
-	}
-	
 	/**
 	 * Cada tipo de celda que hay en el terreno. Contiene su identificacion y la funcion de transicion para ese
 	 * tipo de terreno. 
@@ -276,7 +192,6 @@ public class RaceEnvironment implements EnvironmentInterface {
 				agentPolicy[y][x] = -1;
 			}
 		}
-		agentKnown = new boolean[TRACK_HEIGHT][TRACK_WIDTH];
 	}
 
 	/**
@@ -304,6 +219,13 @@ public class RaceEnvironment implements EnvironmentInterface {
 		}
 	}
 
+	/**
+	 * Imprime el estado actual del entorno y posicion del agente, ademas de la ultima accion ejecutada
+	 * y sus consecuencias
+	 * @param action
+	 * @param oldPos
+	 * @param newPos
+	 */
 	private void dumpState(int action, Position oldPos, Position newPos) {
 		System.out.println("action: " + Direction.get(action) + "(" + action + "), " + oldPos + " -> " + newPos);
 		dumpState();
@@ -319,9 +241,6 @@ public class RaceEnvironment implements EnvironmentInterface {
 
 	@Override
 	public Reward_observation_terminal env_step(Action action) {
-
-//		System.out.println(agent);
-		
 		int nAction = action.getInt(0);
 		Direction dir = Direction.get(nAction);
 
@@ -335,11 +254,6 @@ public class RaceEnvironment implements EnvironmentInterface {
 
 		if (outputMoves) {
 			dumpState(nAction, oldPos, agent);
-//			try {
-//				Thread.sleep(5);
-//			} catch (InterruptedException e) {
-//				e.printStackTrace();
-//			}
 		}
 		
 		Reward_observation_terminal rot = new Reward_observation_terminal();
@@ -374,102 +288,8 @@ public class RaceEnvironment implements EnvironmentInterface {
 		return pos.y * TRACK_WIDTH + pos.x;
 	}
 	
-	private Position getPosition(int state) {
-		return new Position(state%TRACK_WIDTH, state/TRACK_WIDTH);
-	}
-
-	private CellType getCellType(int state) {
-		return track[state/TRACK_WIDTH][state%TRACK_WIDTH];
-	}
-	
 	private int getNumStates() {
 		return TRACK_HEIGHT * TRACK_WIDTH;
 	}
 	
-	private int getStateInDirection(int fromState, Direction dir) {
-		Position pos = getPosition(fromState);
-		pos.move(dir);
-		if (!inBounds(pos) || !inTrack(pos)) {
-			return fromState;
-		}
-		return getState(pos);
-	}
-
-	
-	public MDP getMDP() {
-		return new RaceMDP(TRACK_WIDTH * TRACK_HEIGHT, 4);
-	}
-
-	public class RaceMDP implements MDP {
-		private double P[][][];
-		private final int numStates;
-		private final int numActions;
-		
-		public RaceMDP(int numStates, int numActions) {
-			this.numStates = numStates;
-			this.numActions = numActions;
-
-			P = new double[numStates][numActions][numStates];
-			for (int s = 0 ; s < numStates ; s++) {
-				CellType ct = getCellType(s);
-				if (!ct.isValid()) {
-					continue;
-				}
-				double sum = 0;
-				for (int a = 0 ; a < numActions ; a++) {
-					
-					Direction dir = Direction.get(a);
-					int newState = getStateInDirection(s, dir);
-					P[s][a][newState] += ct.T.getPDir(0);
-					sum += P[s][a][newState];
-					
-					Direction right = dir.getRight();
-					newState = getStateInDirection(s, right);
-					P[s][a][newState] += ct.T.getPDir(1);
-					sum += P[s][a][newState];
-					
-					Direction back = dir.getBack();
-					newState = getStateInDirection(s, back);
-					P[s][a][newState] += ct.T.getPDir(2);
-					sum += P[s][a][newState];
-					
-					Direction left = dir.getLeft();
-					newState = getStateInDirection(s, left);
-					P[s][a][newState] += ct.T.getPDir(3);
-					sum += P[s][a][newState];
-					
-/*
-					for (int s2 = 0 ; s2 < numStates ; s2++) {
-						P[s][a][s2] = 0;
-					}
-*/
-				}
-			}
-		}
-		
-		@Override
-		public double getP(int fromState, int action, int toState) {
-//			if (P[fromState][action][toState] == -1) {
-//				double p = 0; // Si no es el estado en ninguna de las direcciones... la P es 0
-//				CellType fromType = getCellType(fromState);
-//				Direction dir = Direction.get(action);
-//				for (int i = 0 ; i < numActions ; i++) { // Busca en cada direccion si es posible llegar y cual es la prob. en la T
-//					int newState = getStateInDirection(fromState, dir);
-//					if (newState == toState) {
-//						p = fromType.T.getPDir(dir);
-//					}
-//					dir = dir.getRight();
-//				}
-//				P[fromState][action][toState] = p;
-//			}
-			return P[fromState][action][toState];
-		}
-
-		@Override
-		public double getReward(int state) {
-			CellType ct = getCellType(state);
-			return stateReward(ct);
-		} 
-	}
-
 }

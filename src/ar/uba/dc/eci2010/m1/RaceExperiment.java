@@ -6,11 +6,12 @@ import org.rlcommunity.rlglue.codec.AgentInterface;
 import org.rlcommunity.rlglue.codec.EnvironmentInterface;
 import org.rlcommunity.rlglue.codec.LocalGlue;
 import org.rlcommunity.rlglue.codec.RLGlue;
-import ar.uba.dc.eci2010.m1.agent.ModelBasedRacingAgent;
+
+import ar.uba.dc.eci2010.m1.agent.modelbased.ModelBasedRacingAgent;
 import ar.uba.dc.eci2010.m1.agent.modelfree.QAgent;
 
 /**
- * 
+ * Clase de prueba para los agentes
  *
  */
 public class RaceExperiment {
@@ -24,6 +25,9 @@ public class RaceExperiment {
 		env = new RaceEnvironment("data/bigtrack.txt");
 	}
 
+	/**
+	 * Prueba con distintos parametros el agente basado en modelo
+	 */
 	@Test
 	public void runMultipleModelBased() {
 		for (int e = 10 ; e < 70 ; e+=5) {
@@ -33,14 +37,17 @@ public class RaceExperiment {
 				RLGlue.setGlue(glue);
 				RLGlue.RL_init();
 				RLGlue.RL_agent_message("normal");
-				runEpisodes(200, 100, false);
+				runEpisodes(200, 100, false, true);
 				RLGlue.RL_agent_message("evaluate");
 				System.out.print("Running e: " + e + ", s: " + s + " ");
 				evaluate(100, 1000);
 			}
 		}
 	}
-	
+
+	/**
+	 * Prueba el agente model-based
+	 */
 	@Test
 	public void runModelBasedTest() {
 		int minKnownState = (int) Math.sqrt(RaceEnvironment.TRACK_WIDTH * RaceEnvironment.TRACK_HEIGHT);
@@ -58,7 +65,7 @@ public class RaceExperiment {
 		RLGlue.RL_agent_message("normal");
 //		RLGlue.RL_agent_message("reset-known");
 //		RLGlue.RL_env_message("show moves");
-		runEpisodes(20, totalCells * 10, true);
+		runEpisodes(20, totalCells * 10, true, true);
 
 		// Evaluate
 		System.out.println("Evaluating...");
@@ -66,7 +73,7 @@ public class RaceExperiment {
 		evaluate(100, totalCells);
 	}
 
-	private void runEpisodes(int nEpisodes, int steps, boolean printSteps) {
+	private void runEpisodes(int nEpisodes, int steps, boolean printSteps, boolean endQuick) {
 		int lastSteps = 0;
 		int minSteps = Integer.MAX_VALUE;
 		for (int i = 0 ; i < nEpisodes ; i++) {
@@ -79,9 +86,9 @@ public class RaceExperiment {
 			if (thisSteps < minSteps) {
 				minSteps = thisSteps;
 			}
-//			if (thisSteps == lastSteps && thisSteps == minSteps) {
-//				break;
-//			}
+			if (endQuick && thisSteps == lastSteps && thisSteps == minSteps) {
+				break;
+			}
 			lastSteps = thisSteps;
 		}
 	}
@@ -96,7 +103,7 @@ public class RaceExperiment {
 		
 		// Learn V
 		System.out.println("running experiments...");
-		runEpisodes(200, 1000, true);
+		runEpisodes(200, 1000, true, false);
 
 		// Evaluate
 		System.out.println("Evaluating...");
@@ -104,6 +111,13 @@ public class RaceExperiment {
 		evaluate(100, 500);
 	}
 	
+	/**
+	 * Prueba multiples episodios y devuelve el promedio de pasos que necesito
+	 * Imprime el promedio y el desvio estandar
+	 * @param nEpisodes
+	 * @param steps
+	 * @return
+	 */
 	public double evaluate(int nEpisodes, int steps) {
 		double sum = 0;
 		double sum_squares = 0;
