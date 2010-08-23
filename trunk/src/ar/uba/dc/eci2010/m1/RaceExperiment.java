@@ -49,11 +49,6 @@ public class RaceExperiment {
 
 		RLGlue.RL_init();
 
-		// Learn model
-//		System.out.println("learning model...");
-//		RLGlue.RL_agent_message("learn-model");
-//		runEpisodes(1, 10000);
-
 		// Learn V
 		System.out.println("running experiments...");
 		RLGlue.RL_agent_message("normal");
@@ -68,12 +63,22 @@ public class RaceExperiment {
 	}
 
 	private void runEpisodes(int nEpisodes, int steps, boolean printSteps) {
+		int lastSteps = 0;
+		int minSteps = Integer.MAX_VALUE;
 		for (int i = 0 ; i < nEpisodes ; i++) {
 			RLGlue.RL_episode(steps);
 			RLGlue.RL_env_message("print-state");
+			int thisSteps = RLGlue.RL_num_steps();
 			if (printSteps) {
-				System.out.println(RLGlue.RL_num_steps());
+				System.out.println(thisSteps);
 			}
+			if (thisSteps < minSteps) {
+				minSteps = thisSteps;
+			}
+			if (thisSteps == lastSteps && thisSteps == minSteps) {
+				break;
+			}
+			lastSteps = thisSteps;
 		}
 	}
 
