@@ -1,0 +1,13 @@
+18
+11
+.TTTTTTTT..TTTTT..
+.T......TTTT...TT.
+.T.......SSS....T.
+.0........SSSTTTT.
+...........TTT....
+X..........T......
+T..........TTT....
+TT...........TTTT.
+.TTTTT..........TT
+.....TTTTTT......T
+..........TTTTTTTT
