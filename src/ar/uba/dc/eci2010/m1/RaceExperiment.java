@@ -21,7 +21,7 @@ public class RaceExperiment {
 
 	@Before
 	public void setupEnv() {
-		env = new RaceEnvironment("data/hugetrack.txt");
+		env = new RaceEnvironment("data/midtrack.txt");
 	}
 
 	@Test
@@ -58,7 +58,7 @@ public class RaceExperiment {
 		RLGlue.RL_agent_message("normal");
 //		RLGlue.RL_agent_message("reset-known");
 //		RLGlue.RL_env_message("show moves");
-		runEpisodes(50, totalCells * 10, true);
+		runEpisodes(10, totalCells * 10, true);
 
 		// Evaluate
 		System.out.println("Evaluating...");
@@ -71,7 +71,7 @@ public class RaceExperiment {
 		int minSteps = Integer.MAX_VALUE;
 		for (int i = 0 ; i < nEpisodes ; i++) {
 			RLGlue.RL_episode(steps);
-			RLGlue.RL_env_message("print-state");
+//			RLGlue.RL_env_message("print-state");
 			int thisSteps = RLGlue.RL_num_steps();
 			if (printSteps) {
 				System.out.println(thisSteps);
@@ -79,9 +79,9 @@ public class RaceExperiment {
 			if (thisSteps < minSteps) {
 				minSteps = thisSteps;
 			}
-			if (thisSteps == lastSteps && thisSteps == minSteps) {
-				break;
-			}
+//			if (thisSteps == lastSteps && thisSteps == minSteps) {
+//				break;
+//			}
 			lastSteps = thisSteps;
 		}
 	}
