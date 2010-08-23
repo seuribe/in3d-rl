@@ -24,7 +24,7 @@ public class RaceEnvironment implements EnvironmentInterface {
 	/** La recompensa por llegar a la meta */
 	private static final int TERMINATION_REWARD = 1000;
 	public static int TRACK_WIDTH;
-	private int TRACK_HEIGHT;
+	public static int TRACK_HEIGHT;
 	
 	public static final int MAX_REWARD = TERMINATION_REWARD;
 	

@@ -21,7 +21,7 @@ public class RaceExperiment {
 
 	@Before
 	public void setupEnv() {
-		env = new RaceEnvironment("data/bigtrack.txt");
+		env = new RaceEnvironment("data/hugetrack.txt");
 	}
 
 	@Test
@@ -43,23 +43,27 @@ public class RaceExperiment {
 	
 	@Test
 	public void runModelBasedTest() {
-		agent = new ModelBasedRacingAgent(20, 20);
+		int minKnownState = (int) Math.sqrt(RaceEnvironment.TRACK_WIDTH * RaceEnvironment.TRACK_HEIGHT);
+		int minKnownTransition = minKnownState;
+		agent = new ModelBasedRacingAgent(minKnownState, minKnownTransition);
 		glue = new LocalGlue(env, agent);
 		RLGlue.setGlue(glue);
 
 		RLGlue.RL_init();
 
+		int totalCells = RaceEnvironment.TRACK_WIDTH * RaceEnvironment.TRACK_HEIGHT;
+		
 		// Learn V
 		System.out.println("running experiments...");
 		RLGlue.RL_agent_message("normal");
 //		RLGlue.RL_agent_message("reset-known");
 //		RLGlue.RL_env_message("show moves");
-		runEpisodes(50, 1000, true);
+		runEpisodes(50, totalCells * 10, true);
 
 		// Evaluate
 		System.out.println("Evaluating...");
 		RLGlue.RL_agent_message("evaluate");
-		evaluate(100, 1000);
+		evaluate(100, totalCells);
 	}
 
 	private void runEpisodes(int nEpisodes, int steps, boolean printSteps) {
